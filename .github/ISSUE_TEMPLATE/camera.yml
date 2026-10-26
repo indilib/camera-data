@@ -1,0 +1,109 @@
+name: Add or update a camera
+description: Submit read noise data for a camera. A pull request with the camera data file is created for you.
+title: "[Camera] "
+labels: ["camera-data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for contributing! Fill in the fields below and submit. A bot turns your answers into a
+        camera data file and opens a pull request. If something is wrong, the bot comments here and you can
+        edit this issue to fix it.
+
+        Most values are on the manufacturer's product page, in the read noise chart and the specifications.
+  - type: input
+    id: camera_id
+    attributes:
+      label: Camera name
+      description: |
+        The camera device name exactly as Ekos shows it, for example `ZWO CCD ASI2600MM Pro` or
+        `QHY CCD 268M`. KStars uses this name to select your camera automatically.
+        Allowed characters: letters, digits, spaces and `( ) + -`.
+      placeholder: ZWO CCD ASI2600MM Pro
+    validations:
+      required: true
+  - type: dropdown
+    id: sensor
+    attributes:
+      label: Sensor type
+      options:
+        - Monochrome
+        - Color
+    validations:
+      required: true
+  - type: dropdown
+    id: gain_type
+    attributes:
+      label: Gain control
+      options:
+        - Adjustable gain (most CMOS cameras)
+        - ISO (DSLR and mirrorless cameras)
+        - Fixed, read noise does not depend on gain (CCD cameras)
+    validations:
+      required: true
+  - type: input
+    id: gain_range
+    attributes:
+      label: Gain range or ISO values
+      description: |
+        Adjustable gain: the minimum and maximum gain the camera accepts, for example `0, 460`.
+        ISO: the ISO values the camera offers, for example `100, 200, 400, 800, 1600`.
+        Leave empty to use the gains listed in the read noise table. Not used for fixed read noise cameras.
+      placeholder: 0, 460
+  - type: input
+    id: pixel_size
+    attributes:
+      label: Pixel size (microns)
+      placeholder: "3.76"
+    validations:
+      required: true
+  - type: input
+    id: qe
+    attributes:
+      label: Quantum efficiency
+      description: Peak quantum efficiency, as a percentage (`80%`) or a fraction (`0.8`).
+      placeholder: 80%
+    validations:
+      required: true
+  - type: textarea
+    id: read_noise
+    attributes:
+      label: Read noise
+      description: |
+        One line per point of the read noise chart: the gain (a whole number), then the read noise in electrons.
+        Ten to thirty points covering the whole gain range are plenty.
+
+        For a fixed read noise camera, enter only the read noise, for example `9`.
+
+        If the camera has several read modes, start each table with the mode name in square brackets,
+        in the order the camera lists them:
+        ```
+        [Photographic]
+        0, 3.5
+        60, 1.6
+        [High Gain]
+        0, 7.0
+        56, 1.2
+        ```
+      placeholder: |
+        0, 3.5
+        100, 1.5
+        200, 1.2
+        300, 1.0
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source
+      description: Where the values come from, for example a link to the manufacturer's chart, or "measured with SharpCap sensor analysis".
+    validations:
+      required: true
+  - type: checkboxes
+    id: license
+    attributes:
+      label: License
+      options:
+        - label: I agree that this data is published under the GPL-2.0-or-later license of this repository.
+          required: true

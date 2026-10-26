@@ -1,0 +1,91 @@
+name: Camera data from issue
+
+# Turns an "Add or update a camera" issue into a pull request. Editing the
+# issue updates the same pull request.
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: camera-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    if: github.event.issue.state == 'open' && contains(github.event.issue.labels.*.name, 'camera-data')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      # The issue body is untrusted input: it only reaches the script through
+      # a file, never through the shell command line.
+      - name: Generate camera data file
+        id: generate
+        continue-on-error: true
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          python3 tools/camera_data.py from-issue --body-file "$RUNNER_TEMP/body.md" \
+            --out-dir cameras --output "$GITHUB_OUTPUT" --errors-file "$RUNNER_TEMP/errors.md"
+
+      - name: Report problems
+        if: steps.generate.outcome == 'failure'
+        run: |
+          {
+            echo "Thanks for your submission! The camera data file could not be created because of these problems:"
+            echo
+            if [ -s "$RUNNER_TEMP/errors.md" ]; then cat "$RUNNER_TEMP/errors.md"; else echo "- Unexpected error, see the workflow log."; fi
+            echo
+            echo "Please edit this issue to fix them. The check runs again when you save."
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
+          exit 1
+
+      - name: Open or update pull request
+        if: steps.generate.outcome == 'success'
+        env:
+          FILE: ${{ steps.generate.outputs.file }}
+          CAMERA: ${{ steps.generate.outputs.camera }}
+          ACTION: ${{ steps.generate.outputs.action }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$(git status --porcelain -- "$FILE")" ]; then
+            gh issue comment "$ISSUE" --body "The submitted data is identical to the existing file for **$CAMERA**, so there is nothing to change."
+            exit 0
+          fi
+
+          branch="camera/issue-$ISSUE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$FILE"
+          git commit -m "$ACTION camera data for $CAMERA" -m "Submitted by $AUTHOR in #$ISSUE."
+          git push --force origin "$branch"
+
+          pr=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url')
+          if [ -z "$pr" ]; then
+            printf '%s\n' \
+              "$ACTION camera data for **$CAMERA**, submitted by @$AUTHOR." \
+              "" \
+              "The source of the values and the original answers are in #$ISSUE." \
+              "" \
+              "Closes #$ISSUE" > "$RUNNER_TEMP/pr.md"
+            pr=$(gh pr create --base "$BASE" --head "$branch" \
+                   --title "$ACTION camera data for $CAMERA" --body-file "$RUNNER_TEMP/pr.md")
+            gh issue comment "$ISSUE" --body "Thanks! Pull request $pr is ready for review. Once a maintainer merges it, KStars users can download the data from the Exposure Calculator."
+          else
+            gh issue comment "$ISSUE" --body "Thanks! Pull request $pr was updated with your changes."
+          fi

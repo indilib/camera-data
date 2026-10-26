@@ -1,0 +1,18 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate camera data files
+        run: python3 tools/camera_data.py validate
+      - name: Run tests
+        run: python3 -m unittest discover -s tests -v
